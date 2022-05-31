@@ -2,7 +2,7 @@
 
 # typed: ignore
 
-require 'libddprof'
+require 'libdatadog'
 
 module Datadog
   module Profiling
@@ -33,7 +33,7 @@ module Datadog
             on_unknown_os? ||
             not_on_amd64_or_arm64? ||
             expected_to_use_mjit_but_mjit_is_disabled? ||
-            libddprof_not_usable?
+            libdatadog_not_usable?
         end
 
         # This banner will show up in the logs/terminal while compiling the native extension
@@ -72,8 +72,8 @@ module Datadog
         ].freeze
 
         # Validation for this check is done in extconf.rb because it relies on mkmf
-        FAILED_TO_CONFIGURE_LIBDDPROF = explain_issue(
-          'there was a problem in setting up the `libddprof` dependency.',
+        FAILED_TO_CONFIGURE_LIBDATADOG = explain_issue(
+          'there was a problem in setting up the `libdatadog` dependency.',
           suggested: CONTACT_SUPPORT,
         )
 
@@ -167,17 +167,17 @@ module Datadog
           ruby_without_mjit if CAN_USE_MJIT_HEADER && RbConfig::CONFIG['MJIT_SUPPORT'] != 'yes'
         end
 
-        private_class_method def self.libddprof_not_usable?
+        private_class_method def self.libdatadog_not_usable?
           no_binaries_for_current_platform = explain_issue(
-            'the `libddprof` gem installed on your system is missing binaries for your',
+            'the `libdatadog` gem installed on your system is missing binaries for your',
             'platform variant.',
             "(Your platform: `#{Gem::Platform.local}`)",
             '(Available binaries: ',
-            "`#{Libddprof.available_binaries.join('`, `')}`)",
+            "`#{Libdatadog.available_binaries.join('`, `')}`)",
             suggested: CONTACT_SUPPORT,
           )
 
-          no_binaries_for_current_platform unless Libddprof.pkgconfig_folder
+          no_binaries_for_current_platform unless Libdatadog.pkgconfig_folder
         end
       end
       # rubocop:enable Metrics/ModuleLength

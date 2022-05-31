@@ -117,10 +117,10 @@ end
 # In Ruby 2.1, living_threads were stored in a hashmap (st)
 $defs << '-DUSE_LEGACY_LIVING_THREADS_ST' if RUBY_VERSION < '2.2'
 
-# If we got here, libddprof is available and loaded
-ENV['PKG_CONFIG_PATH'] = "#{ENV['PKG_CONFIG_PATH']}:#{Libddprof.pkgconfig_folder}"
+# If we got here, libdatadog is available and loaded
+ENV['PKG_CONFIG_PATH'] = "#{ENV['PKG_CONFIG_PATH']}:#{Libdatadog.pkgconfig_folder}"
 unless pkg_config('ddprof_ffi_with_rpath')
-  skip_building_extension!(Datadog::Profiling::NativeExtensionHelpers::Supported::FAILED_TO_CONFIGURE_LIBDDPROF)
+  skip_building_extension!(Datadog::Profiling::NativeExtensionHelpers::Supported::FAILED_TO_CONFIGURE_LIBDATADOG)
 end
 
 # Tag the native extension library with the Ruby version and Ruby platform.

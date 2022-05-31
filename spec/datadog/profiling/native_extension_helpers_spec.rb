@@ -1,7 +1,6 @@
 # typed: ignore
 
 require 'ext/ddtrace_profiling_native_extension/native_extension_helpers'
-require 'libddprof'
 
 RSpec.describe Datadog::Profiling::NativeExtensionHelpers::Supported do
   describe '.supported?' do
@@ -81,18 +80,18 @@ RSpec.describe Datadog::Profiling::NativeExtensionHelpers::Supported do
         end
 
         shared_examples 'mjit header validation' do
-          shared_examples 'libddprof usable' do
-            context 'when libddprof DOES NOT HAVE binaries for the current platform' do
+          shared_examples 'libdatadog usable' do
+            context 'when libdatadog DOES NOT HAVE binaries for the current platform' do
               before do
-                expect(Libddprof).to receive(:pkgconfig_folder).and_return(nil)
-                expect(Libddprof).to receive(:available_binaries).and_return(%w[fooarch-linux bararch-linux-musl])
+                expect(Libdatadog).to receive(:pkgconfig_folder).and_return(nil)
+                expect(Libdatadog).to receive(:available_binaries).and_return(%w[fooarch-linux bararch-linux-musl])
               end
 
               it { is_expected.to include 'platform variant' }
             end
 
-            context 'when libddprof HAS BINARIES for the current platform' do
-              before { expect(Libddprof).to receive(:pkgconfig_folder).and_return('/simulated/pkgconfig_folder') }
+            context 'when libdatadog HAS BINARIES for the current platform' do
+              before { expect(Libdatadog).to receive(:pkgconfig_folder).and_return('/simulated/pkgconfig_folder') }
 
               it('marks the native extension as supported') { is_expected.to be nil }
             end
@@ -101,7 +100,7 @@ RSpec.describe Datadog::Profiling::NativeExtensionHelpers::Supported do
           context 'on a Ruby version where we CAN NOT use the MJIT header' do
             before { stub_const('Datadog::Profiling::NativeExtensionHelpers::CAN_USE_MJIT_HEADER', false) }
 
-            include_examples 'libddprof usable'
+            include_examples 'libdatadog usable'
           end
 
           context 'on a Ruby version where we CAN use the MJIT header' do
@@ -116,7 +115,7 @@ RSpec.describe Datadog::Profiling::NativeExtensionHelpers::Supported do
             context 'and DOES have MJIT support' do
               before { expect(RbConfig::CONFIG).to receive(:[]).with('MJIT_SUPPORT').and_return('yes') }
 
-              include_examples 'libddprof usable'
+              include_examples 'libdatadog usable'
             end
           end
         end
