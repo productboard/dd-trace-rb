@@ -15,6 +15,7 @@ require 'datadog/tracing/span_operation'
 require 'datadog/tracing/trace_digest'
 require 'datadog/tracing/trace_operation'
 require 'datadog/tracing/writer'
+require 'datadog/tracing/stats_computer'
 
 module Datadog
   module Tracing
@@ -57,7 +58,8 @@ module Datadog
           post_sampler: Sampling::RuleSampler.new
         ),
         tags: {},
-        writer: Writer.new
+        writer: Writer.new,
+        stats_computer: NullStatsComputer.new
       )
         @trace_flush = trace_flush
         @default_service = default_service
@@ -66,6 +68,7 @@ module Datadog
         @sampler = sampler
         @tags = tags
         @writer = writer
+        @stats_computer = stats_computer
       end
 
       # Return a {Datadog::Tracing::SpanOperation span_op} and {Datadog::Tracing::TraceOperation trace_op}
@@ -468,8 +471,12 @@ module Datadog
       # Flush finished spans from the trace buffer, send them to writer.
       def flush_trace(trace_op)
         begin
-          trace = @trace_flush.consume!(trace_op)
-          write(trace) if trace && !trace.empty?
+          trace_segment = @trace_flush.consume!(trace_op)
+
+          if trace_segment && !trace_segment.empty?
+            stats_computer.perform(trace_segment)
+            write(trace_segment) if trace_segment && !trace_segment.empty?
+          end
         rescue StandardError => e
           Datadog.logger.debug { "Failed to flush trace: #{e}" }
         end
