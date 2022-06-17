@@ -63,6 +63,14 @@ module Datadog
               false
             end
           end
+
+          def ==(other)
+            return super unless other.is_a?(Rule)
+
+            matcher == other.matcher &&
+              sample_rate == other.sample_rate &&
+              rate_limit == other.rate_limit
+          end
         end
       end
     end
