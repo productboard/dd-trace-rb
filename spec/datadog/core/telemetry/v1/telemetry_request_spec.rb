@@ -173,20 +173,7 @@ RSpec.describe Datadog::Core::Telemetry::V1::TelemetryRequest do
       end
 
       context 'when :seq_id' do
-        context 'is nil' do
-          let(:seq_id) { nil }
-          it { expect { telemetry_request }.to raise_error(ArgumentError) }
-        end
-
-        context 'is string' do
-          let(:seq_id) { '42' }
-          it { expect { telemetry_request }.to raise_error(ArgumentError) }
-        end
-
-        context 'is valid int' do
-          let(:seq_id) { 42 }
-          it { is_expected.to be_a_kind_of(described_class) }
-        end
+        it_behaves_like 'a required int parameter', 'seq_id'
       end
 
       context ':session_id' do
@@ -194,20 +181,7 @@ RSpec.describe Datadog::Core::Telemetry::V1::TelemetryRequest do
       end
 
       context 'when :tracer_time' do
-        context 'is nil' do
-          let(:tracer_time) { nil }
-          it { expect { telemetry_request }.to raise_error(ArgumentError) }
-        end
-
-        context 'is string' do
-          let(:tracer_time) { '1654805621' }
-          it { expect { telemetry_request }.to raise_error(ArgumentError) }
-        end
-
-        context 'is valid int' do
-          let(:tracer_time) { 1654805621 }
-          it { is_expected.to be_a_kind_of(described_class) }
-        end
+        it_behaves_like 'a required int parameter', 'tracer_time'
       end
     end
   end
