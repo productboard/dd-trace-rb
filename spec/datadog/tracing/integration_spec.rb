@@ -299,14 +299,16 @@ RSpec.describe 'Tracer integration tests' do
 
     shared_examples 'does not modify span' do
       it do
+        trace
+
         expect(span.get_metric('_dd.span_sampling.mechanism')).to be_nil
         expect(span.get_metric('_dd.span_sampling.rule_rate')).to be_nil
         expect(span.get_metric('_dd.span_sampling.max_per_second')).to be_nil
       end
     end
 
-    let!(:trace) do
-      tracer.trace('my.op') do |_, trace_op|
+    let(:trace) do
+      tracer.trace('my.op', service: 'my-service') do |_, trace_op|
         events = trace_op.send(:events)
         events.span_finished.subscribe do |span, trace_op|
           @span = span
@@ -328,25 +330,167 @@ RSpec.describe 'Tracer integration tests' do
       it_behaves_like 'flushed trace'
     end
 
-    context 'with rules' do
-      let(:rules) { [{ name: 'my.op', sample_rate: 0.0 }] }
+    context 'with a kept trace' do
+      around do |example|
+        ClimateControl.modify('DD_TRACE_SAMPLE_RATE' => '1.0') do
+          example.run
+        end
+      end
 
-      context 'with a dropped trace' do
+      it_behaves_like 'does not modify span'
+      it_behaves_like 'flushed trace'
+    end
+
+    context 'with a dropped trace' do
+      context 'by priority sampling' do
         around do |example|
           ClimateControl.modify('DD_TRACE_SAMPLE_RATE' => '0.0') do
             example.run
           end
         end
 
-        context 'with rules configured through DD_SPAN_SAMPLING_RULES settings' do
-          around do |example|
-            ClimateControl.modify('DD_SPAN_SAMPLING_RULES' => json_rules) do
-              example.run
+        context 'with rule matching' do
+          context 'on name' do
+            around do |example|
+              ClimateControl.modify('DD_SPAN_SAMPLING_RULES' => json_rules) do
+                example.run
+              end
+            end
+
+            context 'with a dropped span' do
+              let(:rules) { [{ name: 'my.op', sample_rate: 0.0 }] }
+
+              it_behaves_like 'does not modify span'
+
+
+              context 'by rate limiting' do
+                let(:rules) { [{ name: 'my.op', sample_rate: 1.0, max_per_second: 0 }] }
+
+                it_behaves_like 'does not modify span'
+              end
+            end
+
+            context 'with a kept span' do
+              let(:rules) { [{ name: 'my.op', sample_rate: 1.0 }] }
+
+              it 'sets sampling tags' do
+                expect(span.get_metric('_dd.span_sampling.mechanism')).to eq(8)
+                expect(span.get_metric('_dd.span_sampling.rule_rate')).to eq(1.0)
+                expect(span.get_metric('_dd.span_sampling.max_per_second')).to eq(-1)
+              end
             end
           end
 
-          it_behaves_like 'does not modify span'
-          it_behaves_like 'flushed trace'
+          context 'on service' do
+            around do |example|
+              ClimateControl.modify('DD_SPAN_SAMPLING_RULES' => json_rules) do
+                example.run
+              end
+            end
+
+            context 'with a dropped span' do
+              let(:rules) { [{ service: 'my-ser*', sample_rate: 0.0 }] }
+
+              it_behaves_like 'does not modify span'
+
+              context 'by rate limiting' do
+                let(:rules) { [{ service: 'my-ser*', sample_rate: 1.0, max_per_second: 0 }] }
+
+                it_behaves_like 'does not modify span'
+              end
+            end
+
+            context 'with a kept span' do
+              let(:rules) { [{ service: 'my-ser*', sample_rate: 1.0 }] }
+
+              it 'sets sampling tags' do
+                expect(span.get_metric('_dd.span_sampling.mechanism')).to eq(8)
+                expect(span.get_metric('_dd.span_sampling.rule_rate')).to eq(1.0)
+                expect(span.get_metric('_dd.span_sampling.max_per_second')).to eq(-1)
+              end
+            end
+          end
+        end
+      end
+
+      context 'by direct sampling' do
+        before do
+          _no_sampler = no_sampler
+          Datadog.configure do |c|
+            c.tracing.sampler = _no_sampler
+            c.tracing.priority_sampling = false
+          end
+        end
+
+        let(:no_sampler) { Class.new { def sample!(trace)
+          trace.sampled = false; end}.new }
+
+        context 'with rule matching' do
+          context 'on name' do
+            around do |example|
+              ClimateControl.modify('DD_SPAN_SAMPLING_RULES' => json_rules) do
+                example.run
+              end
+            end
+
+            context 'with a dropped span' do
+              let(:rules) { [{ name: 'my.op', sample_rate: 0.0 }] }
+
+              it_behaves_like 'does not modify span'
+
+
+              context 'by rate limiting' do
+                let(:rules) { [{ name: 'my.op', sample_rate: 1.0, max_per_second: 0 }] }
+
+                it_behaves_like 'does not modify span'
+              end
+            end
+
+            context 'with a kept span' do
+              let(:rules) { [{ name: 'my.op', sample_rate: 1.0 }] }
+
+              it 'sets sampling tags' do
+                trace
+                expect(span.get_metric('_dd.span_sampling.mechanism')).to eq(8)
+                expect(span.get_metric('_dd.span_sampling.rule_rate')).to eq(1.0)
+                expect(span.get_metric('_dd.span_sampling.max_per_second')).to eq(-1)
+              end
+
+              it_behaves_like 'flushed trace' do
+                before { trace }
+              end
+            end
+          end
+
+          context 'on service' do
+            around do |example|
+              ClimateControl.modify('DD_SPAN_SAMPLING_RULES' => json_rules) do
+                example.run
+              end
+            end
+
+            context 'with a dropped span' do
+              let(:rules) { [{ service: 'my-ser*', sample_rate: 0.0 }] }
+
+              it_behaves_like 'does not modify span'
+
+              context 'by rate limiting' do
+                let(:rules) { [{ service: 'my-ser*', sample_rate: 1.0, max_per_second: 0 }] }
+
+                it_behaves_like 'does not modify span'
+              end
+            end
+
+            context 'with a kept span' do
+              let(:rules) { [{ service: 'my-ser*', sample_rate: 1.0 }] }
+
+              it 'sets sampling tags' do
+                expect(span.get_metric('_dd.span_sampling.mechanism')).to eq(8)
+                expect(span.get_metric('_dd.span_sampling.rule_rate')).to eq(1.0)
+                expect(span.get_metric('_dd.span_sampling.max_per_second')).to eq(-1)
+              end
+            end
+          end
         end
       end
     end

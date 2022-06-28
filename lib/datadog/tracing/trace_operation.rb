@@ -226,15 +226,27 @@ module Datadog
         end
       end
 
+      # Returns a {TraceSegment} with all finished spans that can be flushed
+      # at invocation time. All other **finished** spans are discarded.
+      #
+      # A span can be flushed if:
+      #
+      # 1. The span has finished, and
+      # 2. Either:
+      #   a. The trace is kept by sampling.
+      #   b. The span is kept by single span sampling.
+      #
+      # Unfinished spans are not affected by this method.
+      #
+      # @return [TraceSegment]
       def flush!
-        finished = finished?
-
-        # Copy out completed spans
-        spans = @spans.dup
-        @spans = []
-
-        # Use them to build a trace
-        build_trace(spans, !finished)
+        if sampled?
+          flush_all_spans!
+        else
+          # Only spans where the span-level sampling overrides
+          # the trace-level sampling can be flushed.
+          flush_single_sampled_spans_only!
+        end
       end
 
       # Returns a set of trace headers used for continuing traces.
@@ -374,8 +386,15 @@ module Datadog
 
       def finish_span(span, span_op, parent)
         begin
-          # Save finished span & root span
-          @spans << span unless span.nil?
+          if span
+            # Save finished span & root span
+            @spans << span
+
+            # Save single sampled span to guarantee flush even if trace is dropped
+            if span.get_metric(Sampling::Span::Ext::TAG_MECHANISM) == Sampling::Span::Ext::MECHANISM_SPAN_SAMPLING_RATE
+              @single_sampled_spans << span
+            end
+          end
 
           # Deactivate the span, re-activate parent.
           deactivate_span!(span_op)
@@ -401,6 +420,29 @@ module Datadog
         return if span.nil? || root_span
 
         @root_span = span
+      end
+
+      # Flushes all spans from this trace
+      def flush_all_spans!
+        # Copy out completed spans
+        spans = @spans.dup
+        @spans = []
+
+        # Use them to build a trace
+        build_trace(spans, !finished?)
+      end
+
+      # Flush single sampled span only, as the trace as a whole was dropped by trace-level sampling
+      def flush_single_sampled_spans_only!
+        # Copy out completed, selected spans
+        spans = @spans.map do |span|
+          span.get_metric(Sampling::Span::Ext::TAG_MECHANISM) == Sampling::Span::Ext::MECHANISM_SPAN_SAMPLING_RATE
+        end
+        @spans = []
+
+        # Use them to build a trace
+        check spec on what to do with root span tags (e.g. origin)
+        build_trace(spans, !finished?)
       end
 
       def build_trace(spans, partial = false)

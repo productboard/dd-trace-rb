@@ -14,17 +14,11 @@ module Datadog
         def consume!(trace_op)
           return unless full_flush?(trace_op)
 
-          get_trace(trace_op)
+          trace_op.flush!
         end
 
         def full_flush?(trace_op)
-          trace_op && trace_op.sampled? && trace_op.finished?
-        end
-
-        protected
-
-        def get_trace(trace_op)
-          trace_op.flush!
+          trace_op && trace_op.finished?
         end
       end
 
@@ -56,7 +50,6 @@ module Datadog
         end
 
         def partial_flush?(trace_op)
-          return false unless trace_op.sampled?
           return true if trace_op.finished?
           return false if trace_op.finished_span_count < @min_spans_for_partial
 
